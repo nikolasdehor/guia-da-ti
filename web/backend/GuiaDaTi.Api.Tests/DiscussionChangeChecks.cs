@@ -41,12 +41,12 @@ static class DiscussionChangeChecks
         try {
             using var client = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = new Uri(app.Urls.Single()) };
             Check((await client.PutAsJsonAsync("/api/discussions/7", new DiscussionEdit("body", "title"))).StatusCode == HttpStatusCode.Unauthorized, "Anonymous edit rejected");
-            await CheckBodyLimits(client, authenticated: false);
+            await CheckBodyLimits(client, fake, authenticated: false);
             Check((await client.DeleteAsync("/api/discussions/7")).StatusCode == HttpStatusCode.Unauthorized, "Anonymous deletion rejected");
             (await client.GetAsync("/test/login/777")).EnsureSuccessStatusCode();
             Check((await client.PutAsJsonAsync("/api/discussions/7", new DiscussionEdit("body", "title"))).StatusCode == HttpStatusCode.BadRequest, "Authenticated edits require CSRF");
             await Csrf(client);
-            await CheckBodyLimits(client, authenticated: true);
+            await CheckBodyLimits(client, fake, authenticated: true);
             var original = (await client.GetFromJsonAsync<OwnedPublication>("/api/discussions/7/editable?commentId=comment-1"))!;
             Check(original.Body == "**Original** [link](https://example.com)", "Editor receives original Markdown without stripping links or formatting");
             (await client.PutAsJsonAsync("/api/discussions/7", new DiscussionEdit("body", "title"))).EnsureSuccessStatusCode();
@@ -72,7 +72,7 @@ static class DiscussionChangeChecks
             Directory.Delete(folder, true);
         }
     }
-    static async Task CheckBodyLimits(HttpClient client, bool authenticated)
+    static async Task CheckBodyLimits(HttpClient client, WriteGitHub fake, bool authenticated)
     {
         // Escaped Unicode exercises the largest JSON representation of valid text.
         var json = JsonSerializer.Serialize(new DiscussionEdit(new string('漢', 10000), new string('漢', 256)));
@@ -84,11 +84,14 @@ static class DiscussionChangeChecks
                 Content = new StringContent(json + new string(' ', size - Encoding.UTF8.GetByteCount(json)), Encoding.UTF8, "application/json")
             };
             request.Headers.TransferEncodingChunked = chunked;
+            var before = fake.Mutations;
             using var response = await client.SendAsync(request);
             var expected = size > 65536 ? HttpStatusCode.RequestEntityTooLarge
                 : authenticated ? HttpStatusCode.NoContent : HttpStatusCode.Unauthorized;
             Check(response.StatusCode == expected,
                 $"Edit body limit: {route}, chunked={chunked}, bytes={size}, authenticated={authenticated}: expected {expected}, got {response.StatusCode}");
+            if (expected != HttpStatusCode.NoContent)
+                Check(fake.Mutations == before, $"Rejected edit never mutates: {route}, chunked={chunked}, bytes={size}, authenticated={authenticated}");
         }
     }
     static async Task Csrf(HttpClient client) {
