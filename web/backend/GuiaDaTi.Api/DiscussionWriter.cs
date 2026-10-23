@@ -187,9 +187,11 @@ public static class DiscussionWriteEndpoints
                 return Results.Json(new { error = "Não foi possível carregar o texto original. Tente novamente." }, statusCode: 503);
             }
         });
-        app.MapPut("/api/discussions/{number:int}", (int number, DiscussionEdit edit, HttpContext context, IAntiforgery csrf, DiscussionWriter writer, DiscussionsClient reader) => Change(number, null, edit, context, csrf, writer, reader));
+        app.MapPut("/api/discussions/{number:int}", (int number, DiscussionEdit edit, HttpContext context, IAntiforgery csrf, DiscussionWriter writer, DiscussionsClient reader) => Change(number, null, edit, context, csrf, writer, reader))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(65536));
         app.MapDelete("/api/discussions/{number:int}", (int number, HttpContext context, IAntiforgery csrf, DiscussionWriter writer, DiscussionsClient reader) => Change(number, null, null, context, csrf, writer, reader));
-        app.MapPut("/api/discussions/{number:int}/comments/{id}", (int number, string id, DiscussionEdit edit, HttpContext context, IAntiforgery csrf, DiscussionWriter writer, DiscussionsClient reader) => Change(number, id, edit, context, csrf, writer, reader));
+        app.MapPut("/api/discussions/{number:int}/comments/{id}", (int number, string id, DiscussionEdit edit, HttpContext context, IAntiforgery csrf, DiscussionWriter writer, DiscussionsClient reader) => Change(number, id, edit, context, csrf, writer, reader))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(65536));
         app.MapDelete("/api/discussions/{number:int}/comments/{id}", (int number, string id, HttpContext context, IAntiforgery csrf, DiscussionWriter writer, DiscussionsClient reader) => Change(number, id, null, context, csrf, writer, reader));
         app.MapPost("/api/discussions/publish", async (DiscussionDraft draft, HttpContext context, IAntiforgery csrf, DiscussionWriter writer, DiscussionsClient reader) => {
             context.Response.Headers.CacheControl = "no-store";
