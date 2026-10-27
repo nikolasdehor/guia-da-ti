@@ -14,6 +14,7 @@ public sealed class CommunityActivity(TimeProvider clock)
             return seen.Count;
         }
     }
+
 }
 
 public static class CommunityActivityEndpoints
@@ -31,7 +32,8 @@ public static class CommunityActivityEndpoints
                     Path = "/api/community"
                 });
             }
-            return Results.Ok(new { activeUsers = activity.Count(visitor), windowMinutes = 5 });
+            var activeUsers = activity.Count(visitor);
+            return Results.Ok(new { activeUsers, windowMinutes = 5 });
         });
     }
 }

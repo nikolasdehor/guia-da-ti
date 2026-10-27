@@ -1,5 +1,6 @@
+import { FORUM_ENABLED } from './features';
 import {ContributionDialog} from './ContributionDialog';
-import { SectionGuide, UserGuide } from './UserGuide';
+import { SectionGuide } from './UserGuide';
 import { GuideLanding } from './GuideLanding';
 import { guideSectionForGroup } from './guide-steps';
 import {openContribution} from './contribution-actions';
@@ -7,6 +8,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Discussions } from './Discussions';
 import { StudyCover, StudyDetail, StudyListing } from './Study';
 import { studyTypes } from './study-ranking';
+import { RoadmapView } from './RoadmapView';
+import { RoadmapContributors } from './RoadmapContributors';
 import { ResourcePreview } from './ResourcePreview';
 import { resourceImage } from './resource-image';
 import { shouldOpenRow, openRowLink } from './row-navigation';
@@ -66,7 +69,7 @@ function resourceExtra(resource: Resource) {
       location?.scope === 'regional' ? location.states?.join(' · ') || '' : 'Localização não informada';
   }
   if (profileTypes.has(resource.type)) {
-    try { return new URL(resource.url).hostname.replace(/^www\./, ''); } catch { return 'Perfil externo'; }
+    try { return new URL(resource.url ?? '').hostname.replace(/^www\./, ''); } catch { return 'Perfil externo'; }
   }
   if (['jobs', 'scholarships', 'events', 'meetups', 'conferences', 'hackathons'].includes(resource.type)) {
     return resource.countries?.length ? resource.countries.map(country => labels[country] || country).join(' · ') : resource.areas.map(area => labels[area] || area).join(' · ');
@@ -100,15 +103,15 @@ function ResourceRow({ resource, platform, locationColumn = false, sponsored = f
   const [open, setOpen] = useState(false);
   const extra = resourceExtra(resource);
   const profile = profileTypes.has(resource.type);
-  const { profile: creator, loading: profileLoading } = useCreatorProfile(resource.url, profile && !resource.demo, 0);
+  const { profile: creator, loading: profileLoading } = useCreatorProfile(resource.url ?? '', profile && !resource.demo, 0);
   const displayName = creator?.name || resource.name;
   const displaySummary = creator?.description || resource.summary;
   const imageUrl = resourceImage(resource) || creator?.avatarUrl || undefined;
   const communityImageUrl = resource.type === 'communities' && !imageUrl
-    ? `https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(resource.url)}&sz=128`
+    ? `https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(resource.url ?? '')}&sz=128`
     : undefined;
   const dialog = dialogTypes.has(resource.type);
-  const href = profile ? resource.url : resourcePath(resource);
+  const href = profile && resource.url ? resource.url : resourcePath(resource);
   const category = profile ? resource.creatorCategories?.map(id => creatorCategoryLabels[id] || id).join(' · ') || 'Categoria não informada' : categories.find(item => item.id === resource.type)?.name || resource.type;
   const titleClass = 'block max-w-full truncate rounded-sm text-left text-[13px] font-medium leading-5 hover:text-primary focus-visible:outline-2 focus-visible:outline-ring';
   const title: ReactNode = dialog
@@ -146,8 +149,10 @@ function ResourceRow({ resource, platform, locationColumn = false, sponsored = f
 export function App({ path }: { path: string }) {
   const page = pageInfo(path);
   const home = path === '/';
+  const forumPage = FORUM_ENABLED && path === '/forum';
   const creatorsPage = path === '/criadores';
   const communitiesPage = path === '/comunidades';
+  const communitiesActive = communitiesPage || page.category?.id === 'communities';
   const sponsoredPlacement: SponsoredPlacement | null = creatorsPage ? 'creators' : communitiesPage ? 'communities' : page.category && (studyTypes.has(page.category.id) || page.category.id === 'tutorials') ? 'studying' : ['events', 'meetups', 'conferences', 'hackathons'].includes(page.category?.id || '') ? 'networking' : null;
   const [communitySelection, setCommunitySelection] = useState<CommunityFilters>(emptyCommunityFilters);
   const [dark, setDark] = useState(false);
@@ -217,7 +222,7 @@ export function App({ path }: { path: string }) {
     (!communitiesPage || matchesCommunityFilters(r, communitySelection)) &&
     (!page.category || r.type === page.category.id || (page.category.id === 'creators' && r.type === 'youtube')) &&
     (!platform || (platform === 'youtube' && r.type === 'youtube') || (creatorNetworks.find(network => network.id === platform)?.domains || []).some(domain => {
-      try { const host = new URL(r.url).hostname.toLowerCase(); return host === domain || host.endsWith(`.${domain}`); }
+      try { const host = new URL(r.url ?? '').hostname.toLowerCase(); return host === domain || host.endsWith(`.${domain}`); }
       catch { return false; }
     })) &&
     (!page.area || r.areas.includes(page.area)) &&
@@ -244,7 +249,7 @@ export function App({ path }: { path: string }) {
   }
 
   return (
-    <Motion><ContributionToasts><Participation><ContributionDialog /><CommunityMetricsProvider><MaintainersProvider><div className="flex min-h-dvh flex-col">
+    <Motion><ContributionToasts><Participation><ContributionDialog /><CommunityMetricsProvider><MaintainersProvider><div className="flex min-h-dvh flex-col overflow-x-clip">
       <Button asChild className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50">
         <a href="#conteudo">Pular para o conteúdo</a>
       </Button>
@@ -256,7 +261,9 @@ export function App({ path }: { path: string }) {
           <NavigationMenu viewport={false} aria-label="Principal" className="!static pointer-events-auto min-w-0 flex">
             <NavigationMenuList className="flex-nowrap gap-0.5">
               <NavigationMenuItem><NavigationMenuLink asChild active={home}><a href="/" aria-current={home ? 'page' : undefined}>Início</a></NavigationMenuLink></NavigationMenuItem>
-              {groups.map(group => ['creators', 'communities'].includes(group.id) ? (
+              {FORUM_ENABLED && <NavigationMenuItem><NavigationMenuLink asChild active={forumPage}><a href="/forum" aria-current={forumPage ? 'page' : undefined}>Fórum</a></NavigationMenuLink></NavigationMenuItem>}
+              <NavigationMenuItem><NavigationMenuLink asChild active={communitiesActive}><a href="/comunidades" aria-current={communitiesActive ? 'page' : undefined}>Comunidades</a></NavigationMenuLink></NavigationMenuItem>
+              {groups.filter(group => group.id !== 'communities').map(group => ['creators'].includes(group.id) ? (
                 <NavigationMenuItem key={group.id}><NavigationMenuLink asChild active={page.category?.id === group.id}><a href={'/' + group.categories[0].route} aria-current={page.category?.id === group.id ? 'page' : undefined}>{group.name}</a></NavigationMenuLink></NavigationMenuItem>
               ) : (
                 <NavigationMenuItem key={group.id} value={group.id} className="!static">
@@ -277,9 +284,6 @@ export function App({ path }: { path: string }) {
                   </NavigationMenuContent>
                 </NavigationMenuItem>
               ))}
-              <NavigationMenuItem value="sobre">
-                <NavigationMenuLink asChild active={path === '/sobre'}><a href="/sobre" aria-current={path === '/sobre' ? 'page' : undefined} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium hover:bg-accent hover:text-primary">Sobre</a></NavigationMenuLink>
-              </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
           </div>
@@ -295,8 +299,10 @@ export function App({ path }: { path: string }) {
                 <nav aria-label="Navegação para celular" className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
                   <div className="overflow-hidden border divide-y">
                     <SheetClose asChild><Button asChild size="menu" variant={home ? 'secondary' : 'ghost'} className="min-h-11 rounded-none"><a href="/" aria-current={home ? 'page' : undefined}>Início</a></Button></SheetClose>
+                    {FORUM_ENABLED && <SheetClose asChild><Button asChild size="menu" variant={forumPage ? 'secondary' : 'ghost'} className="min-h-11 rounded-none"><a href="/forum" aria-current={forumPage ? 'page' : undefined}>Fórum</a></Button></SheetClose>}
+                    <SheetClose asChild><Button asChild size="menu" variant={communitiesActive ? 'secondary' : 'ghost'} className="min-h-11 rounded-none"><a href="/comunidades" aria-current={communitiesActive ? 'page' : undefined}>Comunidades</a></Button></SheetClose>
                     <Accordion.Root type="single" collapsible className="divide-y" defaultValue={groups.find(group => group.categories.some(category => category.id === page.category?.id))?.id}>
-                    {groups.map(group => ['creators', 'communities'].includes(group.id) ? (
+                    {groups.filter(group => group.id !== 'communities').map(group => ['creators'].includes(group.id) ? (
                       <SheetClose asChild key={group.id}><Button asChild size="menu" variant={page.category?.id === group.id ? 'secondary' : 'ghost'} className="rounded-none"><a href={'/' + group.categories[0].route} aria-current={page.category?.id === group.id ? 'page' : undefined}>{group.name}</a></Button></SheetClose>
                     ) : (
                       <Accordion.Item key={group.id} value={group.id}>
@@ -315,7 +321,6 @@ export function App({ path }: { path: string }) {
                       </Accordion.Item>
                     ))}
                     </Accordion.Root>
-                    <SheetClose asChild><Button asChild size="menu" variant={path === '/sobre' ? 'secondary' : 'ghost'} className="min-h-11 rounded-none text-sm font-medium"><a href="/sobre" aria-current={path === '/sobre' ? 'page' : undefined}>Sobre</a></Button></SheetClose>
                     <SheetClose asChild><Button size="menu" variant="ghost" className="min-h-11 rounded-none text-sm font-medium" onClick={() => setTimeout(() => openContribution(), 0)}>Contribuir</Button></SheetClose>
                   </div>
                 </nav>
@@ -325,24 +330,23 @@ export function App({ path }: { path: string }) {
         </div>
       </header>
 
-      <UserGuide dark={dark} />
 
       <main data-motion id="conteudo" className="site-frame mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-8 sm:px-6 sm:py-10">
         {!page.valid ? (
           <Empty><EmptyHeader><EmptyTitle>Página não encontrada</EmptyTitle><EmptyDescription>Não encontramos esta página no Guia.</EmptyDescription></EmptyHeader><EmptyContent><Button asChild><a href="/">Voltar ao início</a></Button></EmptyContent></Empty>
         ) : home ? (
-          <div className="flex flex-1 flex-col gap-8"><Discussions className="w-full flex-1" /><div className="section-divider" aria-hidden="true" /><Community area="supporters" preview /></div>
+          <GuideLanding />
+        ) : forumPage ? (
+          <Discussions className="w-full flex-1" />
         ) : path === '/admin/anuncios' ? (
           <AdvertisingAdmin />
         ) : path === '/divulgue' || path === '/empresas' ? (
           <Companies dark={dark} />
-        ) : path === '/sobre' ? (
-          <GuideLanding dark={dark} />
         ) : page.resource ? (
           <article className="mx-auto w-full max-w-4xl space-y-5">
             <section aria-label="Apresentação do recurso" className="overflow-hidden rounded-lg border bg-card">
             <header className="flex flex-col gap-5 border-b p-4 sm:flex-row sm:items-center sm:p-6">
-              <div className="min-w-0 flex-1 space-y-3"><div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"><a href={page.category!.id === 'youtube' ? '/criadores?plataforma=youtube' : page.category!.id === 'courses' ? '/sobre#por-onde-comecar' : `/${page.category!.route}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"><ArrowLeft aria-hidden="true" className="size-4" />{page.category!.id === 'youtube' ? 'Criadores no YouTube' : page.category!.id === 'courses' ? 'Ver categorias' : page.category!.name}</a>{page.resource.demo && <Badge variant="outline">Exemplo fictício</Badge>}</div><h1 className="text-3xl font-semibold tracking-tight">{page.resource.name}</h1><p className="text-sm leading-relaxed text-muted-foreground">{page.resource.summary}</p></div>
+              <div className="min-w-0 flex-1 space-y-3"><div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"><a href={page.category!.id === 'youtube' ? '/criadores?plataforma=youtube' : page.category!.id === 'courses' ? '/#por-onde-comecar' : `/${page.category!.route}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"><ArrowLeft aria-hidden="true" className="size-4" />{page.category!.id === 'youtube' ? 'Criadores no YouTube' : page.category!.id === 'courses' ? 'Ver categorias' : page.category!.name}</a>{page.resource.demo && <Badge variant="outline">Exemplo fictício</Badge>}</div><h1 className="text-3xl font-semibold tracking-tight">{page.resource.name}</h1><p className="text-sm leading-relaxed text-muted-foreground">{page.resource.summary}</p></div>
               {(studyTypes.has(page.resource.type) || page.resource.imageUrl) && <div className="w-full shrink-0 overflow-hidden rounded-lg border sm:w-48"><StudyCover resource={page.resource} priority /></div>}
             </header>
             <div className="flex flex-col gap-5 p-4 sm:p-6">
@@ -351,11 +355,20 @@ export function App({ path }: { path: string }) {
             {!!page.resource.technologies.length && <div className="flex flex-wrap gap-2">{page.resource.technologies.map(t => <Badge asChild variant="secondary" key={t}><a href={`/tecnologias/${t}`}>{labels[t] || t}</a></Badge>)}</div>}
             {page.resource.type==='communities' && <div className="space-y-3"><p className="text-sm text-muted-foreground">{resourceExtra(page.resource)}{page.resource.communityAudience ? ` · Público: ${communityAudiences.find(item=>item.id===page.resource!.communityAudience)?.name}` : ''}</p><div className="flex flex-wrap gap-2">{page.resource.communityLinks?.map(link=><Button asChild variant="outline" key={link.platform}><a href={link.url} target="_blank" rel="noopener noreferrer">{communityPlatforms.find(item=>item.id===link.platform)?.name}<ArrowUpRight /></a></Button>)}</div></div>}
             </div>
+            {page.resource.roadmap ? <>
+            <RoadmapView resource={page.resource} />
+            <RoadmapContributors slug={page.resource.slug} />
+            <aside aria-label="Informações do roadmap" className="flex flex-col gap-3 rounded-lg bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <dl className="grid grid-cols-2 gap-3 text-sm sm:min-w-56"><div className="space-y-1"><dt className="text-xs text-muted-foreground">Idiomas</dt><dd>{page.resource.languages.join(', ') || 'Não informado'}</dd></div><div className="space-y-1"><dt className="text-xs text-muted-foreground">Última atualização</dt><dd>{page.resource.updatedAt.split('-').reverse().join('/')}</dd></div></dl>
+            <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => openContribution('roadmaps', { roadmap: page.resource!.slug })}>Sugerir alteração</Button>{repository && <Button asChild variant="outline"><a href={`${repository}/commits/main/data/roadmaps/${page.resource.slug}.json`} target="_blank" rel="noopener noreferrer">Ver histórico<ArrowUpRight /></a></Button>}</div>
+            </aside>
+            </> : (
             <aside aria-label="Informações e links do recurso" className="flex flex-col gap-4 rounded-lg bg-muted/30 p-4 lg:flex-row lg:items-center lg:justify-between">
             <dl className="grid grid-cols-2 gap-3 text-sm lg:min-w-56"><div className="space-y-1"><dt className="text-xs text-muted-foreground">Idiomas</dt><dd>{page.resource.languages.join(', ') || 'Não informado'}</dd></div><div className="space-y-1"><dt className="text-xs text-muted-foreground">Última atualização</dt><dd>{page.resource.updatedAt.split('-').reverse().join('/')}</dd></div></dl>
             <p className="text-xs leading-relaxed text-muted-foreground lg:max-w-56">O conteúdo e as informações completas ficam no site de origem.</p>
-            <div className="flex flex-wrap gap-2"><Button asChild><a href={page.resource.url} target="_blank" rel="noopener noreferrer">Abrir site<ArrowUpRight /></a></Button>{repository && <Button asChild variant="outline"><a href={`${repository}/edit/main/data/${page.resource.type}/${page.resource.slug}.json`}>Editar informação</a></Button>}</div>
+            <div className="flex flex-wrap gap-2">{page.resource.url && <Button asChild><a href={page.resource.url} target="_blank" rel="noopener noreferrer">Abrir site<ArrowUpRight /></a></Button>}{repository && <Button asChild variant="outline"><a href={`${repository}/edit/main/data/${page.resource.type}/${page.resource.slug}.json`}>Editar informação</a></Button>}</div>
             </aside>
+            )}
             </div>
             </section>
             {studyTypes.has(page.resource.type) && <StudyDetail resource={page.resource} />}

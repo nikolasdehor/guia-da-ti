@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { HyperframesPlayer } from '@hyperframes/player';
 import { gsap } from 'gsap';
-import { ArrowUpRight, BookOpen, Briefcase, CalendarDays, CircleHelp, Code, Compass, Github, Lightbulb, MessageSquare, Megaphone, Newspaper, Pause, Play, Users, Video, HeartHandshake, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Briefcase, CalendarDays, CircleHelp, Code, Compass, Github, Lightbulb, MessageSquare, Megaphone, Newspaper, Pause, Play, Users, Video, HeartHandshake } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { aboutGuideSteps, githubGuideSteps, guideAnimationSection, guideSteps, sectionWalkthrough, type GuideStep, type GuideStepId } from './guide-steps';
@@ -181,41 +181,4 @@ export function SectionGuide({ section, dark, label }: { section: GuideStepId | 
     <GuideAttention target={trigger} enabled={!label} />
     <GuideDialogContent dark={dark ?? localDark} steps={steps} title={title} description={description} />
   </Dialog>;
-}
-
-export function AboutGuide({ dark }: { dark: boolean }) {
-  return <GuideTimeline dark={dark} steps={aboutGuideSteps} embedded />;
-}
-
-export function UserGuide({ dark: _dark }: { dark: boolean }) {
-  const [dismissed, setDismissed] = useState(false);
-  useEffect(() => {
-    const storageKey = 'guia:usage-tip:v1';
-    function sync(value: string | null) {
-      const hidden = value === 'dismissed';
-      setDismissed(hidden);
-      document.documentElement.toggleAttribute('data-guide-dismissed', hidden);
-    }
-    try { sync(localStorage.getItem(storageKey)); } catch { /* The banner remains available without storage. */ }
-    function changed(event: StorageEvent) {
-      if (event.key === storageKey || event.key === null) sync(event.newValue);
-    }
-    window.addEventListener('storage', changed);
-    return () => window.removeEventListener('storage', changed);
-  }, []);
-  function dismiss() {
-    setDismissed(true);
-    document.documentElement.setAttribute('data-guide-dismissed', '');
-    try { localStorage.setItem('guia:usage-tip:v1', 'dismissed'); } catch { /* Closing still works for this page. */ }
-  }
-  if (dismissed) return null;
-  return <aside aria-label="Dicas para usar o Guia" className="guide-announcement relative shrink-0 border-y border-primary/15 bg-accent/60">
-      <div className="site-frame mx-auto grid max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-3 sm:flex sm:flex-nowrap sm:px-6">
-        <CircleHelp aria-hidden="true" className="size-5 shrink-0 text-primary" />
-        <p className="min-w-0 text-sm sm:flex-1"><span className="font-medium">Novo por aqui?</span>{' '}<span className="text-muted-foreground">Veja as dicas para usar o Guia.</span><span aria-hidden="true" className="ml-2 inline-flex items-center gap-1 whitespace-nowrap text-primary underline underline-offset-4 sm:hidden">Como usar o Guia<ArrowUpRight className="size-4" /></span></p>
-        <a href="/sobre" aria-label="Abrir dicas para usar o Guia" className="absolute inset-0 z-[1] sm:hidden" />
-        <Button asChild variant="outline" className="hidden sm:order-none sm:ml-auto sm:inline-flex"><a href="/sobre">Como usar o Guia<ArrowUpRight /></a></Button>
-        <Button variant="ghost" size="icon" className="relative z-10 col-start-3 row-start-1 shrink-0 sm:order-3 sm:ml-0" aria-label="Fechar barra de dicas" title="Não mostrar novamente neste navegador" onClick={dismiss}><X /></Button>
-      </div>
-    </aside>;
 }
